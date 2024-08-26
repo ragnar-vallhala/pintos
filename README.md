@@ -100,7 +100,7 @@ sudo apt install bison flex
 
 9. After doing all this you are ready with all the dependencies that I know of. Let's start the fun part `***Building the project*** ` . Run below command to do all the setups.
 ```bash
-./configure --target-list=x86_64-linux-user
+./configure
 ```
 *Make sure that you are in `qemu` directory and not wandered-off somewhere else.* 
 
