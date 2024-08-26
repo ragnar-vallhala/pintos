@@ -86,7 +86,7 @@ sudo apt install \
     libibverbs-dev libjpeg8-dev libncurses5-dev libnuma-dev librbd-dev \
     librdmacm-dev libsasl2-dev libsdl1.2-dev libseccomp-dev libsnappy-dev \
     libspice-server-dev libssl-dev libusb-1.0-0-dev libvde-dev libvdeplug-dev \
-    libvte-2.91-dev libxen-dev libxenstore-dev libxkbcommon-dev libxml2-dev \
+    libvte-2.91-dev libxen-dev libxkbcommon-dev libxml2-dev \
     libxrandr-dev libxrender-dev libxres-dev libxt-dev libxtst-dev \
     libyaml-dev ninja-build python3 python3-pip python3-sphinx
 ```
