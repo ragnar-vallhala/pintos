@@ -135,8 +135,8 @@ void thread_tick(void) {
 
 /* Prints thread statistics. */
 void thread_print_stats(void) {
-  // printf("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
-  // idle_ticks, kernel_ticks, user_ticks);
+  printf("Thread: %lld idle ticks, %lld kernel ticks, %lld user ticks\n",
+         idle_ticks, kernel_ticks, user_ticks);
 }
 
 /* Creates a new kernel thread named NAME with the given initial
