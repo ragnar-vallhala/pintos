@@ -1,5 +1,4 @@
 CLEAN_SUBDIRS = src doc tests
-
 all::
 	@echo "This makefile has only 'clean' and 'check' targets."
 
