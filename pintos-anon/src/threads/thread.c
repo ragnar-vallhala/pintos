@@ -28,7 +28,6 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
-static struct list sleeping_list;
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -90,7 +89,6 @@ void thread_init(void) {
   lock_init(&tid_lock);
   list_init(&ready_list);
   list_init(&all_list);
-  list_init(&sleeping_list);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread();
   init_thread(initial_thread, "main", PRI_DEFAULT);
@@ -495,25 +493,6 @@ void thread_schedule_tail(struct thread *prev) {
    It's not safe to call printf() until thread_schedule_tail()
    has completed. */
 static void schedule(void) {
-  enum intr_level old_level = intr_disable();
-  struct list_elem *e = list_begin(&sleeping_list);
-  int64_t cur_ticks = timer_ticks();
-  while (e != list_end(&sleeping_list)) {
-    struct thread *t = list_entry(e, struct thread, elem);
-    if (cur_ticks >= t->wake_time) {
-      e = list_remove(e); /* Remove this thread from sleeping_list */
-      list_push_back(&ready_list, &t->elem); /* Wake this thread up! */
-      t->status = THREAD_READY;
-
-    } else
-      e = list_next(e);
-    // printf("Ticks: %d, Sleeping: %d, Thread wake: %lld\n", timer_ticks(),
-    // list_size(&sleeping_list), t->wake_time);
-  }
-
-  // printf("For thread %s remaing time is %lld\n", t->name,
-  // t->wake_time - timer_ticks());
-
   struct thread *cur = running_thread();
   struct thread *next = next_thread_to_run();
   struct thread *prev = NULL;
@@ -524,9 +503,6 @@ static void schedule(void) {
   if (cur != next)
     prev = switch_threads(cur, next);
   thread_schedule_tail(prev);
-
-  // printf("Number of sleeping threads: %d\n", list_size(&sleeping_list));
-  intr_set_level(old_level);
 }
 
 /* Returns a tid to use for a new thread. */
@@ -544,20 +520,3 @@ static tid_t allocate_tid(void) {
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof(struct thread, stack);
-
-void thread_sleep(int64_t ticks) {
-  struct thread *cur = thread_current();
-  // printf("The thread %s will sleep for %lld\n", cur->name, ticks);
-  enum intr_level old_level;
-  old_level = intr_disable();
-  if (cur != idle_thread) {
-    cur->status = THREAD_SLEEPING;
-    cur->wake_time = timer_ticks() + ticks;
-    // printf("The thread %s will wake on  %lld & current is %d\n", cur->name,
-    // cur->wake_time, timer_ticks());
-    list_push_back(&sleeping_list, &cur->elem);
-
-    schedule();
-  }
-  intr_set_level(old_level);
-}

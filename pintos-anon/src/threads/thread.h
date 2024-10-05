@@ -7,11 +7,10 @@
 
 /* States in a thread's life cycle. */
 enum thread_status {
-  THREAD_RUNNING,  /* Running thread. */
-  THREAD_READY,    /* Not running but ready to run. */
-  THREAD_BLOCKED,  /* Waiting for an event to trigger. */
-  THREAD_SLEEPING, /* Waiting for an event to trigger. */
-  THREAD_DYING     /* About to be destroyed. */
+  THREAD_RUNNING, /* Running thread. */
+  THREAD_READY,   /* Not running but ready to run. */
+  THREAD_BLOCKED, /* Waiting for an event to trigger. */
+  THREAD_DYING    /* About to be destroyed. */
 };
 
 /* Thread identifier type.
@@ -137,5 +136,4 @@ int thread_get_nice(void);
 void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
-void thread_sleep(int64_t ticks);
 #endif /* threads/thread.h */
