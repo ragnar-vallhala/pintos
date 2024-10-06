@@ -1,0 +1,12 @@
+[options]
+werror = false
+debug_tcg = true
+debug_graph_lock = true
+debug_mutex = true
+optimization = 0
+docs = disabled
+plugins = true
+
+[properties]
+native_file = ['/home/ragnar/pintos/qemu/build/config-meson.cross']
+

@@ -1,0 +1,1 @@
+/home/ragnar/pintos/qemu/tests/tcg/Makefile.target
