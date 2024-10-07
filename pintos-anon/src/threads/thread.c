@@ -1,5 +1,5 @@
+
 #include "threads/thread.h"
-#include "thread.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -9,6 +9,7 @@
 #include "threads/vaddr.h"
 #include <debug.h>
 #include <random.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,7 +29,7 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
-static struct list sleeping_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -90,7 +91,7 @@ void thread_init(void) {
   lock_init(&tid_lock);
   list_init(&ready_list);
   list_init(&all_list);
-  list_init(&sleeping_list);
+
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread();
   init_thread(initial_thread, "main", PRI_DEFAULT);
@@ -190,6 +191,7 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
 
   /* Add to run queue. */
   thread_unblock(t);
+  thread_yield();
 
   return tid;
 }
@@ -223,7 +225,7 @@ void thread_unblock(struct thread *t) {
 
   old_level = intr_disable();
   ASSERT(t->status == THREAD_BLOCKED);
-  list_push_back(&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, compare_priority, 0);
   t->status = THREAD_READY;
   intr_set_level(old_level);
 }
@@ -242,17 +244,8 @@ struct thread *thread_current(void) {
      have overflowed its stack.  Each thread has less than 4 kB
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
-  // if (t == NULL) {
-  // printf("The thread is null\n");
-  // }
-  // else if (!is_thread(t)) {
-  // printf("This is not a thread\n");
-  // }
   ASSERT(is_thread(t));
-  // printf("Is current thread %d running %d\n", is_thread(t),
-  // t->status == THREAD_RUNNING);
-
-  // ASSERT(t->status == THREAD_RUNNING);
+  ASSERT(t->status == THREAD_RUNNING);
 
   return t;
 }
@@ -289,7 +282,7 @@ void thread_yield(void) {
 
   old_level = intr_disable();
   if (cur != idle_thread)
-    list_push_back(&ready_list, &cur->elem);
+    list_insert_ordered(&ready_list, &cur->elem, compare_priority, 0);
   cur->status = THREAD_READY;
   schedule();
   intr_set_level(old_level);
@@ -310,7 +303,11 @@ void thread_foreach(thread_action_func *func, void *aux) {
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority) {
-  thread_current()->priority = new_priority;
+  thread_current()->priorities[0] = new_priority;
+  if (thread_current()->size == 1) {
+    thread_current()->priority = new_priority;
+    thread_yield();
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -395,7 +392,6 @@ struct thread *running_thread(void) {
 
 /* Returns true if T appears to point to a valid thread. */
 static bool is_thread(struct thread *t) {
-  // printf("Checking is thread %d", (t != NULL && t->magic == THREAD_MAGIC));
   return t != NULL && t->magic == THREAD_MAGIC;
 }
 
@@ -413,9 +409,14 @@ static void init_thread(struct thread *t, const char *name, int priority) {
   strlcpy(t->name, name, sizeof t->name);
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
-  t->magic = THREAD_MAGIC;
-  t->wake_time = 0;
 
+  /* Make list of priorities and not the number of
+     locks with each thread*/
+  t->priorities[0] = priority;
+  t->donation_no = 0;
+  t->size = 1;
+  t->magic = THREAD_MAGIC;
+  t->waiting_for = NULL;
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
   intr_set_level(old_level);
@@ -495,38 +496,17 @@ void thread_schedule_tail(struct thread *prev) {
    It's not safe to call printf() until thread_schedule_tail()
    has completed. */
 static void schedule(void) {
-  enum intr_level old_level = intr_disable();
-  struct list_elem *e = list_begin(&sleeping_list);
-  int64_t cur_ticks = timer_ticks();
-  while (e != list_end(&sleeping_list)) {
-    struct thread *t = list_entry(e, struct thread, elem);
-    if (cur_ticks >= t->wake_time) {
-      e = list_remove(e); /* Remove this thread from sleeping_list */
-      list_push_back(&ready_list, &t->elem); /* Wake this thread up! */
-      t->status = THREAD_READY;
-
-    } else
-      e = list_next(e);
-    // printf("Ticks: %d, Sleeping: %d, Thread wake: %lld\n", timer_ticks(),
-    // list_size(&sleeping_list), t->wake_time);
-  }
-
-  // printf("For thread %s remaing time is %lld\n", t->name,
-  // t->wake_time - timer_ticks());
-
   struct thread *cur = running_thread();
   struct thread *next = next_thread_to_run();
   struct thread *prev = NULL;
 
+  ASSERT(intr_get_level() == INTR_OFF);
   ASSERT(cur->status != THREAD_RUNNING);
   ASSERT(is_thread(next));
 
   if (cur != next)
     prev = switch_threads(cur, next);
   thread_schedule_tail(prev);
-
-  // printf("Number of sleeping threads: %d\n", list_size(&sleeping_list));
-  intr_set_level(old_level);
 }
 
 /* Returns a tid to use for a new thread. */
@@ -545,19 +525,31 @@ static tid_t allocate_tid(void) {
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof(struct thread, stack);
 
-void thread_sleep(int64_t ticks) {
-  struct thread *cur = thread_current();
-  // printf("The thread %s will sleep for %lld\n", cur->name, ticks);
-  enum intr_level old_level;
-  old_level = intr_disable();
-  if (cur != idle_thread) {
-    cur->status = THREAD_SLEEPING;
-    cur->wake_time = timer_ticks() + ticks;
-    // printf("The thread %s will wake on  %lld & current is %d\n", cur->name,
-    // cur->wake_time, timer_ticks());
-    list_push_back(&sleeping_list, &cur->elem);
+/* Compares the priority of the two threards and returns true if priority
+   of first thread is greater than the second thread. */
+bool compare_priority(struct list_elem *l1, struct list_elem *l2, void *aux) {
+  struct thread *t1 = list_entry(l1, struct thread, elem);
+  struct thread *t2 = list_entry(l2, struct thread, elem);
+  if (t1->priority > t2->priority)
+    return true;
+  return false;
+}
 
-    schedule();
+/*Sorts the ready_list present in thread.c*/
+void sort_ready_list(void) { list_sort(&ready_list, compare_priority, 0); }
+
+/* Searches the stack of Donation priority list for the priority of the donor
+   thread to remove it from the list and change the current priority
+   accordingly*/
+void search_array(struct thread *cur, int elem) {
+  int found = 0;
+  for (int i = 0; i < (cur->size) - 1; i++) {
+    if (cur->priorities[i] == elem) {
+      found = 1;
+    }
+    if (found == 1) {
+      cur->priorities[i] = cur->priorities[i + 1];
+    }
   }
-  intr_set_level(old_level);
+  cur->size -= 1;
 }
