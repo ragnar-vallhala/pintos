@@ -4,6 +4,7 @@ This repository is intended for easy installation and setup of the Pintos and QE
 
 > [!NOTE]
 > The below setup is for Debian based systems. It relies on **apt** package manager.
+> The assignments are solved in multiple branches. Do look for the particular assignment in that branch.
 
 1. Clone the repository (preferably in your ~ directory).
 ``` bash
